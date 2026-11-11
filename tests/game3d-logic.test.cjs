@@ -1,0 +1,19 @@
+const fs=require('fs'),vm=require('vm');
+let src=fs.readFileSync('dist/game3d.js','utf8').replace(/^import .*?;\n/,'').replace(/if\(init3D\(\)\)\{setStage\(1\);active=false;mission.hidden=true;controls.hidden=true;crosshair.hidden=true;touch.hidden=true;intro\(\);animate\(\)\}\s*$/,'');
+const n={};const node=id=>n[id] ||= {innerHTML:'',textContent:'',hidden:false,style:{},className:'',setAttribute(){},addEventListener(){},appendChild(){},querySelectorAll(){return []}};
+class Fake {constructor(){this.position={set(){}};this.rotation={};this.shadow={mapSize:{set(){}},camera:{}}}set(){} copy(){} }
+const THREE=new Proxy({Clock:class{getDelta(){return 0}},Vector3:class{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z}set(x,y,z){this.x=x;this.y=y;this.z=z}}},{get(t,k){return t[k]||Fake}});
+const store={};
+const localStorage={setItem(k,v){store[k]=v},getItem(k){return store[k]??null},removeItem(k){delete store[k]}};
+const context={THREE,localStorage,document:{getElementById:node,addEventListener(){},querySelectorAll(){return []}},window:{addEventListener(){}},setTimeout,clearTimeout,console,Math,Set};
+vm.createContext(context);vm.runInContext(src,context);
+vm.runInContext(`
+ if(!validCode([2,3,1])||validCode([2,1,3])||validCode([2,2,1]))throw Error('code validation');
+ if(solveCode([1])!==null||solveCode([2]).join(',')!=='2,3,1')throw Error('CSP search');
+ for(let t=0;t<300;t++){let walls=[];for(let i=0;i<40;i++)if(i!==START&&i!==GOAL&&Math.random()<.27)walls.push(i);let r=astar(walls),q=[[START,0]],seen=new Set([START]),shortest=null;while(q.length){let [u,d]=q.shift();if(u===GOAL){shortest=d;break}for(let v of neighbors(u))if(!walls.includes(v)&&!seen.has(v)){seen.add(v);q.push([v,d+1])}}if((r.path?r.path.length-1:null)!==shortest)throw Error('A* shortest path')}
+ let r=astar(defaultWalls);if(!r.path)throw Error('default map');
+ clues=['camera','logs','message'];let p=probabilities();if(Math.abs(p.reduce((a,b)=>a+b)-1)>1e-10||p[0]<=p[1])throw Error('Bayesian inference');
+ let actionCount=0; targets=[{x:1,z:1,action(){actionCount++}}];position.x=0;position.z=0;modal=false;active=true;interact();if(actionCount!==1)throw Error('interaction');
+ position.x=6;position.z=6;interact();if(actionCount!==1)throw Error('distant interaction');
+ stage=3;metBot=true;navComplete=true;clues=['camera','logs'];saveGame();let saved=readSave();if(!saved||saved.stage!==3||saved.clues.length!==2)throw Error('checkpoint save');setStage=(n)=>{stage=n;clues=[];navComplete=false};closeOverlay=()=>{};message=()=>{};resumeGame();if(stage!==3||clues.length!==2||!navComplete||!metBot)throw Error('checkpoint resume');localStorage.setItem(SAVE_KEY,'{broken');if(readSave()!==null)throw Error('invalid checkpoint');const low=securityEvaluate(securityModel,TEST_ML,.15),high=securityEvaluate(securityModel,TEST_ML,.85);for(const r of [low,high]){if(r.tp+r.tn+r.fp+r.fn!==TEST_ML.length)throw Error('confusion matrix total');if(Math.abs(r.accuracy-(r.tp+r.tn)/TEST_ML.length)>1e-9)throw Error('accuracy');if(Math.abs(r.precision-(r.tp+r.fp?r.tp/(r.tp+r.fp):0))>1e-9)throw Error('precision');if(Math.abs(r.recall-(r.tp+r.fn?r.tp/(r.tp+r.fn):0))>1e-9)throw Error('recall');if(Math.abs(r.f1-(r.precision+r.recall?2*r.precision*r.recall/(r.precision+r.recall):0))>1e-9)throw Error('f1')}if(low.tp+low.fp<=high.tp+high.fp)throw Error('threshold should alter predictions');document.getElementById('ml-threshold').value='50';renderML();if(!document.getElementById('ml-results').innerHTML.includes('Accuracy')||!document.getElementById('ml-results').innerHTML.includes('FP '))throw Error('metrics UI');let empty=securityEvaluate(securityModel,TEST_ML,2);if(empty.precision!==0||empty.f1!==0)throw Error('zero denominator');console.log('3D game logic passed: CSP, 300 A* maps, Bayes, proximity, checkpoints, classifier and metrics.');
+`,context);
